@@ -33,7 +33,8 @@ class Neuron:
         self.updated_bias = None
 
         if weights is None:
-            self.weights = 1#np.random.uniform(0, 1, number_input)
+            # wieso hast du hier 1 für weights? fully connected layer
+            self.weights = np.random.uniform(0, 1, number_input)
         else:
             self.weights = weights
         # stores output computed within the feed-forward algorithm
@@ -43,7 +44,6 @@ class Neuron:
         # computed updated weights are temporarily stored in an array
         # necessary since back-propagation uses the current weights of neurons in previous layer
         self.updated_weights = []
-
 
     # Method for activation of neuron using variable z as input
     # z = bias + sum(weights*inputs)
@@ -136,97 +136,9 @@ class NeuralNetwork:
 
     def addLayer(self, layer_object):
         self.NetworkLayers.append(layer_object)
-    """
-    def addLayer(self, layer_type, input_dimensions, activation_function=None, learning_rate=None,
-                 number_kernels=None, kernel_size=None, weights=None, bias=None,stride=None, padding=None):
-        if layer_type == "Conv2D":
-
-            self.NetworkLayers.append(ConvolutionalLayer(number_kernels=number_kernels,
-                                                         kernel_size=kernel_size,
-                                                         activation_function=activation_function,
-                                                         dimension_input=input_dimensions,
-                                                         learning_rate=learning_rate,
-                                                         bias=bias,
-                                                         weights=weights,
-                                                         stride=stride,
-                                                         padding=padding))
-        elif layer_type == "MaxPool":
-            self.NetworkLayers.append(MaxPoolingLayer(kernel_size=kernel_size,
-                                                      dimension_input=input_dimensions))
-        elif layer_type == "Flatten":
-            self.NetworkLayers.append(FlattenLayer(dimension_input=input_dimensions))
-    """
-
-
-
-
 
     def print_network(self):
         print(self.NetworkLayers)
-
-
-
-
-
-
-
-
-    """
-
-
-
-
-        number_layers, number_neurons_layer,  activation_functions_layer,  weights=None, bias=None, xor_advanced=None):
-        self.number_layers = number_layers  # Scalar-value (e.g., 2 - 1 hidden and 1 output layer)
-        self.number_neurons_layer = number_neurons_layer  # Array (e.g., [2,2] - 2 Neurons HL and 2 Neurons in OL)
-        self.loss_function = loss_function.lower()  # String-variable (e.g., "MSE" or "BCE")
-        self.activation_functions_layer = activation_functions_layer  # Array with string-variables (e.g.,
-        # ['logistic', 'logistic'] for two layer architecture])
-        self.learning_rate = learning_rate  # Scalar-value (e.g., 0.5 - passed down to each neuron)
-        self.bias = bias  # Bias is generated in or passed to FullyConnectedLayer
-        self.weights = weights  # Weights are passed to FullyConnectedLayer / Neuron object
-        self.xor = xor_advanced
-
-        self.FullyConnectedLayers = []
-        for i in range(self.number_layers):
-            if weights is None:
-                # IF-statement necessary to determine the number of inputs into neurons of certain layer
-                # i == 0 --> first hidden layer --> number of input in neurons determined by inputs into network
-                # i != 0 --> all successive layers --> number of input in neurons determined by
-                # number of neurons in previous layer
-                if i == 0:
-                    self.FullyConnectedLayers.append(FullyConnectedLayer(number_neurons=self.number_neurons_layer[i],
-                                                                         activation_function=
-                                                                         self.activation_functions_layer[i],
-                                                                         number_input=self.number_input_nn,
-                                                                         learning_rate=self.learning_rate,
-                                                                         weights=None, bias=None))
-                else:
-                    self.FullyConnectedLayers.append(FullyConnectedLayer(number_neurons=self.number_neurons_layer[i],
-                                                                         activation_function=
-                                                                         self.activation_functions_layer[i],
-                                                                         number_input=(
-                                                                             self.number_neurons_layer[i - 1]),
-                                                                         learning_rate=self.learning_rate,
-                                                                         weights=None, bias=None))
-            else:
-                if i == 0:
-                    self.FullyConnectedLayers.append(FullyConnectedLayer(number_neurons=self.number_neurons_layer[i],
-                                                                         activation_function=
-                                                                         self.activation_functions_layer[i],
-                                                                         number_input=self.number_input_nn,
-                                                                         learning_rate=self.learning_rate,
-                                                                         weights=self.weights[i], bias=self.bias[i]))
-                else:
-                    self.FullyConnectedLayers.append(FullyConnectedLayer(number_neurons=self.number_neurons_layer[i],
-                                                                         activation_function=
-                                                                         self.activation_functions_layer[i],
-                                                                         number_input=(
-                                                                             self.number_neurons_layer[i - 1]),
-                                                                         learning_rate=self.learning_rate,
-                                                                         weights=self.weights[i], bias=self.bias[i]))
-                                                                         
-    """
 
     # Method to compute the losses at each output neuron
     # mse_loss: Mean Squared Error
@@ -238,9 +150,6 @@ class NeuralNetwork:
             return mse_loss(predicted_output, actual_output, 1)
         elif self.loss_function == "bincrossentropy":
             return bin_cross_entropy_loss(predicted_output, actual_output, number_samples)
-
-
-
 
     # Method for Back-Propagation algorithm: Used for updating weights and biases of all neurons in all layers
     def back_propagation(self, input_vector, actual_output_network):
@@ -319,36 +228,6 @@ class NeuralNetwork:
         for layer in self.FullyConnectedLayers:
             layer.update_weights_bias()
 
-    """
-    def train(self, input_vector, actual_output_network, argv=None, epochs=None):
-        global total_loss
-        # Train network based on given argv
-        if argv == 'example1':
-            total_loss_list = []
-            for i in range(epochs):
-                #print("FeedForward Algorithm")
-                #print("#####################")
-                predicted_output_network = self.feed_forward(input_vector)
-                if self.loss_function == 'mse':
-                    total_loss = np.sum(self.calculateloss(predicted_output_network, actual_output_network))
-                elif self.loss_function == 'bincrossentropy':
-                    # predicted_output_network and actual_output_network are given as an array
-                    # loss functions only works with scalar values thus... list.pop(0) to get first value of list
-                    predicted_output = predicted_output_network.pop(0)
-                    actual_output = actual_output_network.pop(0)
-                    total_loss = np.sum(self.calculateloss(predicted_output, actual_output, len(input_vector)))
-                total_loss_list.append(total_loss)
-                #print("BackPropagation Algorithm")
-                #print("#########################")
-                #self.back_propagation(input_vector, actual_output_network)
-                #self.update_weights_bias()
-                #print("Current Epoch {}".format(i+1))
-                #print("Input Sample: {}".format(input_vector))
-                #print("Final Output of Network: {}".format(predicted_output_network))
-                #print('Total Loss Network: {}'.format(total_loss))
-            return(total_loss_list)
-    """
-
     def feed_forward(self, input_vector):
         global output_curr_layer
         for i, layer in enumerate(self.NetworkLayers):
@@ -358,9 +237,7 @@ class NeuralNetwork:
             input_vector = np.array(output_curr_layer)
             print(output_curr_layer)
         # Return the final layers output
-
         return output_curr_layer
-
 
     def train(self, input_vector, actual_output_network, epochs=None):
         # Train network based on given argv
@@ -468,11 +345,10 @@ class MaxPoolingLayer:
 
     def calculate(self, input_vector):
         number_input_kernels = len(input_vector)
-        maxpool_feature_maps = []
         number_strides_rows = round(self.dimension_input[0] / self.stride)
         number_strides_cols = round(self.dimension_input[1] / self.stride)
-
-        for kernel_index in range(len(input_vector)):
+        maxpool_feature_maps = []
+        for kernel_index in range(number_input_kernels):
             kern_edge_top = 0
             kern_edge_bot = self.kernel_size
             maxpool_feature_map = []
@@ -555,8 +431,8 @@ def main(argv=None):
                                        dimension_input=[5, 5], learning_rate=0.1, bias=[2], weights=weights_example1,
                                        stride=None, padding=None))
         NN.addLayer(FlattenLayer(dimension_input=[3, 3]))
-        NN.addLayer(FullyConnectedLayer(number_neurons=1, activation_function="logistic", number_input=1,
-                                        learning_rate=0.1, weights=None, bias=1))
+        NN.addLayer(FullyConnectedLayer(number_neurons=1, activation_function="logistic",
+                                        number_input=np.product([3, 3]), learning_rate=0.1, weights=None, bias=1))
         NN.train(input_vector=np.array(input_example1),
                  actual_output_network=output_example1, epochs=1)
 
@@ -578,8 +454,8 @@ def main(argv=None):
                                        dimension_input=[3, 3], learning_rate=0.1, bias=[2],
                                        weights=weights_example2_conv2, stride=None, padding=None))
         NN.addLayer(FlattenLayer(dimension_input=[3, 3]))
-        NN.addLayer(FullyConnectedLayer(number_neurons=1, activation_function="logistic", number_input=1,
-                                        learning_rate=0.1, weights=None, bias=1))
+        NN.addLayer(FullyConnectedLayer(number_neurons=1, activation_function="logistic",
+                                        number_input=np.product([3, 3]), learning_rate=0.1, weights=None, bias=1))
         NN.train(input_vector=np.array(input_example2),
                  actual_output_network=output_example2, epochs=1)
 
@@ -598,8 +474,8 @@ def main(argv=None):
                                        stride=None, padding=None))
         NN.addLayer(MaxPoolingLayer(kernel_size=2, dimension_input=[4, 4]))
         NN.addLayer(FlattenLayer(dimension_input=[2, 2]))
-        #NN.addLayer(FullyConnectedLayer(number_neurons=1, activation_function="logistic", number_input=1,
-        #                                learning_rate=0.1, weights=None, bias=1))
+        NN.addLayer(FullyConnectedLayer(number_neurons=1, activation_function="logistic",
+                                        number_input=np.product([2, 2]), learning_rate=0.1, weights=None, bias=1))
         NN.train(input_vector=np.array(input_example3),
                  actual_output_network=output_example3, epochs=1)
 
