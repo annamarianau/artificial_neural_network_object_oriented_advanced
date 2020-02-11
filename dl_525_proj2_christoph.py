@@ -1,10 +1,10 @@
 """
 COSC 525 - Deep Learning
-Project 1
+Project 2
 Contributors:
 Metzner, Christoph
 Nau, Anna-Maria
-Date: 01/24/2020
+Date: 02/10/2020
 """
 
 # Imported Libraries
@@ -117,7 +117,6 @@ class FullyConnectedLayer:
         output_curr_layer_neuron = []
         for neuron in self.neurons:
             neuron.output = neuron.calculate(input_vector=input_vector)
-            #print("Output Neuron: ", neuron.output)
             output_curr_layer_neuron.append(neuron.output)
         return output_curr_layer_neuron
 
@@ -356,23 +355,23 @@ class NeuralNetwork:
             #print("Layer: ", i+1)
             print(layer)
             output_curr_layer = layer.calculate(input_vector=input_vector)
-            print(output_curr_layer)
             input_vector = np.array(output_curr_layer)
+            print(output_curr_layer)
         # Return the final layers output
+
         return output_curr_layer
 
 
-    def train(self, input_vector, actual_output_network, argv=None, epochs=None):
+    def train(self, input_vector, actual_output_network, epochs=None):
         # Train network based on given argv
-        if argv == 'example1':
-            total_loss_list = []
-            for epoch in range(epochs):
-                print("Epoch {}".format(epoch+1))
-                predicted_output = self.feed_forward(input_vector=input_vector)
-                total_loss = np.sum(self.calculateloss(predicted_output=predicted_output,
-                                                       actual_output=actual_output_network,
-                                                       number_samples=None))
-                print(total_loss)
+        total_loss_list = []
+        for epoch in range(epochs):
+            print("Epoch {}".format(epoch+1))
+            predicted_output = self.feed_forward(input_vector=input_vector)
+            total_loss = np.sum(self.calculateloss(predicted_output=predicted_output,
+                                                   actual_output=actual_output_network,
+                                                   number_samples=None))
+            print(total_loss)
 
 
 """
@@ -461,10 +460,6 @@ class ConvolutionalLayer:
         return output_feature_maps
 
 
-
-
-
-
 class MaxPoolingLayer:
     def __init__(self, kernel_size, dimension_input):
         self.kernel_size = kernel_size
@@ -472,32 +467,29 @@ class MaxPoolingLayer:
         self.stride = kernel_size
 
     def calculate(self, input_vector):
-        pass
+        number_input_kernels = len(input_vector)
+        maxpool_feature_maps = []
+        number_strides_rows = round(self.dimension_input[0] / self.stride)
+        number_strides_cols = round(self.dimension_input[1] / self.stride)
 
-    output_feature_maps = []
-    for feature_map in self.feature_maps_layer:
-        kern_edge_top = 0
-        kern_edge_bot = self.kernel_size
-        output_feature_map = []
-        for neuron_row in feature_map:
-            kern_edge_l = 0
-            kern_edge_r = self.kernel_size
-            output_neurons_row = []
-            for neuron in neuron_row:
-                # generating a snippet of input matrix based on size of kernel and location
-                reshape_input_vector = input_vector[kern_edge_top:kern_edge_bot, kern_edge_l:kern_edge_r]
-                neuron.output = neuron.calculate(input_vector=reshape_input_vector)
-                # Updating the location of kernel for next neuron via stride
-                kern_edge_l += self.stride
-                kern_edge_r += self.stride
-                output_neurons_row.append(neuron.output)
-            output_feature_map.append(output_neurons_row)
-            kern_edge_top += self.stride
-            kern_edge_bot += self.stride
-        output_feature_maps.append(output_feature_map)
-    return output_feature_maps
-
-
+        for kernel_index in range(len(input_vector)):
+            kern_edge_top = 0
+            kern_edge_bot = self.kernel_size
+            maxpool_feature_map = []
+            for stride_index_row in range(number_strides_rows):
+                kern_edge_l = 0
+                kern_edge_r = self.kernel_size
+                maxpool_row = []
+                for stride_index_col in range(number_strides_cols):
+                    maxpool = np.max(input_vector[kernel_index][kern_edge_top:kern_edge_bot, kern_edge_l:kern_edge_r])
+                    maxpool_row.append(maxpool)
+                    kern_edge_l += self.stride
+                    kern_edge_r += self.stride
+                maxpool_feature_map.append(maxpool_row)
+                kern_edge_top += self.stride
+                kern_edge_bot += self.stride
+            maxpool_feature_maps.append(maxpool_feature_map)
+            return maxpool_feature_maps
 
 
 class FlattenLayer:
@@ -506,7 +498,6 @@ class FlattenLayer:
 
     def calculate(self, input_vector):
         return np.array(input_vector).flatten()
-
 
 
 def log_act(z):
@@ -549,14 +540,14 @@ def main(argv=None):
     # Second List: Holds weights for one kernel
     # Third List: Holds weights for first row of kernel weight 00, 01, 02 / 10, 11, 12 / 20, 21, 22
     # print(NN.NetworkLayers[layer_index].neurons_layer[kernel_index_neurons][row_index_neurons][column_index_neurons])
-
+    cov_res = [4,3,4], [2,4,3], [2, 3, 4]
     if argv[1] == 'example1':
-        input_example1 = [[1, 1, 1, 1, 1],
-                          [2, 2, 2, 2, 2],
-                          [3, 3, 3, 3, 3],
-                          [4, 4, 4, 4, 4],
-                          [5, 5, 5, 5, 5]]
-        weights_example1 = [[[0.1, 0.15, 0.20], [0.25, 0.30, 0.35], [0.40, 0.45, 0.5]]]
+        input_example1 = [[1, 1, 1, 0, 0],
+                          [0, 1, 1, 1, 0],
+                          [0, 0, 1, 1, 1],
+                          [0, 0, 1, 1, 0],
+                          [0, 1, 1, 0, 0]]
+        weights_example1 = [[[1, 0, 1], [0, 1, 0], [1, 0, 1]]]
         output_example1 = 0.5
 
         NN = NeuralNetwork(2, 0.1, "mse")
@@ -567,14 +558,14 @@ def main(argv=None):
         NN.addLayer(FullyConnectedLayer(number_neurons=1, activation_function="logistic", number_input=1,
                                         learning_rate=0.1, weights=None, bias=1))
         NN.train(input_vector=np.array(input_example1),
-                 actual_output_network=output_example1, argv="example1", epochs=1)
+                 actual_output_network=output_example1, epochs=1)
 
     elif argv[1] == 'example2':
-        input_example2 = [[1, 1, 1, 1, 1],
-                          [2, 2, 2, 2, 2],
-                          [3, 3, 3, 3, 3],
-                          [4, 4, 4, 4, 4],
-                          [5, 5, 5, 5, 5]]
+        input_example2 = [[1, 1, 1, 0, 0],
+                          [0, 1, 1, 1, 0],
+                          [0, 0, 1, 1, 1],
+                          [0, 0, 1, 1, 0],
+                          [0, 1, 1, 0, 0]]
         weights_example2_conv1 = [[[0.1, 0.15, 0.20], [0.25, 0.30, 0.35], [0.40, 0.45, 0.5]]]
         weights_example2_conv2 = [[[0.55, 0.6, 0.65], [0.70, 0.75, 0.80], [0.85, 0.90, 0.95]]]
         output_example2 = 0.5
@@ -590,29 +581,27 @@ def main(argv=None):
         NN.addLayer(FullyConnectedLayer(number_neurons=1, activation_function="logistic", number_input=1,
                                         learning_rate=0.1, weights=None, bias=1))
         NN.train(input_vector=np.array(input_example2),
-                 actual_output_network=output_example2, argv="example2", epochs=1)
+                 actual_output_network=output_example2, epochs=1)
 
     elif argv[1] == 'example3':
-        input_example3 = [[1, 1, 1, 1, 1, 1],
-                          [2, 2, 2, 2, 2, 2],
-                          [3, 3, 3, 3, 3, 3],
-                          [4, 4, 4, 4, 4, 4],
-                          [5, 5, 5, 5, 5, 5],
-                          [6, 6, 6, 6, 6, 6]]
-        weights_example3 = [[[0.1, 0.15, 0.20], [0.25, 0.30, 0.35], [0.40, 0.45, 0.5]],
-                            [[0.55, 0.6, 0.65], [0.70, 0.75, 0.80], [0.85, 0.90, 0.95]]]
+        input_example3 = [[1, 1, 1, 0, 0, 1],
+                          [0, 1, 1, 1, 0, 1],
+                          [0, 0, 1, 1, 1, 0],
+                          [0, 0, 1, 1, 0, 0],
+                          [0, 1, 1, 0, 0, 0],
+                          [1, 1, 1, 0, 1, 1]]
+        weights_example3 = [[[0.1, 0.15, 0.20], [0.25, 0.30, 0.35], [0.40, 0.45, 0.5]]]
         output_example3 = 0.5
-
         NN = NeuralNetwork(2, 0.1, "mse")
         NN.addLayer(ConvolutionalLayer(number_kernels=1, kernel_size=3, activation_function="logistic",
                                        dimension_input=[6, 6], learning_rate=0.1, bias=[2], weights=weights_example3,
                                        stride=None, padding=None))
         NN.addLayer(MaxPoolingLayer(kernel_size=2, dimension_input=[4, 4]))
         NN.addLayer(FlattenLayer(dimension_input=[2, 2]))
-        NN.addLayer(FullyConnectedLayer(number_neurons=1, activation_function="logistic", number_input=1,
-                                        learning_rate=0.1, weights=None, bias=1))
+        #NN.addLayer(FullyConnectedLayer(number_neurons=1, activation_function="logistic", number_input=1,
+        #                                learning_rate=0.1, weights=None, bias=1))
         NN.train(input_vector=np.array(input_example3),
-                 actual_output_network=output_example3, argv="example3", epochs=1)
+                 actual_output_network=output_example3, epochs=1)
 
 
 if __name__ == '__main__':
