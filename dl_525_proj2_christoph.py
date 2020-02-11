@@ -31,7 +31,11 @@ class Neuron:
         self.learning_rate = learning_rate
         self.bias = bias
         self.updated_bias = None
-        self.weights = weights
+
+        if weights is None:
+            self.weights = 1#np.random.uniform(0, 1, number_input)
+        else:
+            self.weights = weights
         # stores output computed within the feed-forward algorithm
         self.output = None
         # stores delta computed within the back-propagation algorithm
@@ -131,6 +135,9 @@ class NeuralNetwork:
         self.loss_function = loss_function
         self.NetworkLayers = []
 
+    def addLayer(self, layer_object):
+        self.NetworkLayers.append(layer_object)
+    """
     def addLayer(self, layer_type, input_dimensions, activation_function=None, learning_rate=None,
                  number_kernels=None, kernel_size=None, weights=None, bias=None,stride=None, padding=None):
         if layer_type == "Conv2D":
@@ -149,6 +156,7 @@ class NeuralNetwork:
                                                       dimension_input=input_dimensions))
         elif layer_type == "Flatten":
             self.NetworkLayers.append(FlattenLayer(dimension_input=input_dimensions))
+    """
 
 
 
@@ -228,26 +236,12 @@ class NeuralNetwork:
     # actual_output: Actual output of network
     def calculateloss(self, predicted_output, actual_output, number_samples = None):
         if self.loss_function == "mse":
-            return mse_loss(predicted_output, actual_output)
+            return mse_loss(predicted_output, actual_output, 1)
         elif self.loss_function == "bincrossentropy":
             return bin_cross_entropy_loss(predicted_output, actual_output, number_samples)
 
-    # Method for Feed-Forward algorithm
-    # Computing output for each layer by calling Method (.calculate(current_input)) from FullyConnectedLayer object
-    # Setting generated output of current layer equal with input_vector
-    # --> Next layer / iteration uses output values as input values
-    # returns computed output from neurons at final - output layer --> used to compute the loss
 
-    """
-    def feed_forward(self, input_vector):
-        global output_curr_layer
-        for i, layer in enumerate(self.FullyConnectedLayers):
-            #print("Layer: ", i+1)
-            output_curr_layer = layer.calculate(input_vector=input_vector)
-            input_vector = output_curr_layer
-            # Return Output of layer
-        return output_curr_layer
-    """
+
 
     # Method for Back-Propagation algorithm: Used for updating weights and biases of all neurons in all layers
     def back_propagation(self, input_vector, actual_output_network):
@@ -375,14 +369,10 @@ class NeuralNetwork:
             for epoch in range(epochs):
                 print("Epoch {}".format(epoch+1))
                 predicted_output = self.feed_forward(input_vector=input_vector)
-                print(predicted_output)
-
-
-
-
-
-
-
+                total_loss = np.sum(self.calculateloss(predicted_output=predicted_output,
+                                                       actual_output=actual_output_network,
+                                                       number_samples=None))
+                print(total_loss)
 
 
 """
@@ -418,11 +408,8 @@ class ConvolutionalLayer:
 
         # generating number of neurons
         neurons_row = round(((self.dimension_input[0]-self.kernel_size)/self.stride+1))# number of rows with neurons
-        print("Rows:", neurons_row)
         neurons_column = round(((self.dimension_input[1]-self.kernel_size)/self.stride+1)) # number of columns with neurons
-        print("Cols:", neurons_column)
         self.number_neurons = neurons_row * neurons_column *self.number_kernels # number of total neurons in layer
-        print("Number Neurons:", self.number_neurons)
 
         # List holding all neurons in layer
         self.feature_maps_layer = []
@@ -487,6 +474,29 @@ class MaxPoolingLayer:
     def calculate(self, input_vector):
         pass
 
+    output_feature_maps = []
+    for feature_map in self.feature_maps_layer:
+        kern_edge_top = 0
+        kern_edge_bot = self.kernel_size
+        output_feature_map = []
+        for neuron_row in feature_map:
+            kern_edge_l = 0
+            kern_edge_r = self.kernel_size
+            output_neurons_row = []
+            for neuron in neuron_row:
+                # generating a snippet of input matrix based on size of kernel and location
+                reshape_input_vector = input_vector[kern_edge_top:kern_edge_bot, kern_edge_l:kern_edge_r]
+                neuron.output = neuron.calculate(input_vector=reshape_input_vector)
+                # Updating the location of kernel for next neuron via stride
+                kern_edge_l += self.stride
+                kern_edge_r += self.stride
+                output_neurons_row.append(neuron.output)
+            output_feature_map.append(output_neurons_row)
+            kern_edge_top += self.stride
+            kern_edge_bot += self.stride
+        output_feature_maps.append(output_feature_map)
+    return output_feature_maps
+
 
 
 
@@ -525,8 +535,8 @@ Loss Functions
 """
 
 
-def mse_loss(predicted_output, actual_output):
-    return np.square(np.subtract(predicted_output, actual_output)) * 1 / 2
+def mse_loss(predicted_output, actual_output, number_samples):
+    return np.square(np.subtract(predicted_output, actual_output)) / number_samples
 
 
 def bin_cross_entropy_loss(predicted_output, actual_output, num_samples):
@@ -538,40 +548,71 @@ def main(argv=None):
     # First List: List holding all weights for each kernel
     # Second List: Holds weights for one kernel
     # Third List: Holds weights for first row of kernel weight 00, 01, 02 / 10, 11, 12 / 20, 21, 22
-    weights_example1_2 = [[[0.1,0.15,0.20], [0.25,0.30,0.35], [0.40,0.45,0.5]], [[0.55,0.6,0.65], [0.70,0.75,0.80], [0.85,0.90,0.95]]]
+    # print(NN.NetworkLayers[layer_index].neurons_layer[kernel_index_neurons][row_index_neurons][column_index_neurons])
 
-    input_example1 = [[1,1,1,1,1],
-                         [2,2,2,2,2],
-                         [3,3,3,3,3],
-                         [4,4,4,4,4],
-                         [5,5,5,5,5]]
-    output_example1 = 0.8
     if argv[1] == 'example1':
-        NN = NeuralNetwork(2,0.1,"mse")
-        NN.addLayer(layer_type="Conv2D", input_dimensions=[5, 5], activation_function="logistic", learning_rate=0.1,
-                    number_kernels=1, kernel_size=3, weights=weights_example1_2, bias=[2], stride=None, padding=None)
-        #NN.addLayer(layer_type="MaxPool", input_dimensions=[3, 3], kernel_size=2)
-        NN.addLayer(layer_type="Conv2D", input_dimensions=[3, 3], activation_function="logistic", learning_rate=0.1,
-                    number_kernels=1, kernel_size=3, weights=weights_example1_2, bias=[2], stride=None, padding=None)
-        NN.addLayer(layer_type="Flatten", input_dimensions=[3, 3])
-        #print(NN.NetworkLayers[0].neurons_layer)
-        #print(NN.NetworkLayers[layer_index].neurons_layer[kernel_index_neurons][row_index_neurons][column_index_neurons])
-        #print(NN.NetworkLayers[0].neurons_layer[1][0][2].weights)
-        #print(NN.NetworkLayers[0].neurons_layer[1][0][2].bias)
-        #print(NN.NetworkLayers[0].neurons_layer[0][2][1])
-        #print(NN.NetworkLayers[0].neurons_layer[0][2][1].weights)
-        NN.train(input_vector=np.array(input_example1), actual_output_network=output_example1, argv="example1", epochs=1)
+        input_example1 = [[1, 1, 1, 1, 1],
+                          [2, 2, 2, 2, 2],
+                          [3, 3, 3, 3, 3],
+                          [4, 4, 4, 4, 4],
+                          [5, 5, 5, 5, 5]]
+        weights_example1 = [[[0.1, 0.15, 0.20], [0.25, 0.30, 0.35], [0.40, 0.45, 0.5]]]
+        output_example1 = 0.5
 
-
+        NN = NeuralNetwork(2, 0.1, "mse")
+        NN.addLayer(ConvolutionalLayer(number_kernels=1, kernel_size=3, activation_function="logistic",
+                                       dimension_input=[5, 5], learning_rate=0.1, bias=[2], weights=weights_example1,
+                                       stride=None, padding=None))
+        NN.addLayer(FlattenLayer(dimension_input=[3, 3]))
+        NN.addLayer(FullyConnectedLayer(number_neurons=1, activation_function="logistic", number_input=1,
+                                        learning_rate=0.1, weights=None, bias=1))
+        NN.train(input_vector=np.array(input_example1),
+                 actual_output_network=output_example1, argv="example1", epochs=1)
 
     elif argv[1] == 'example2':
-        pass
+        input_example2 = [[1, 1, 1, 1, 1],
+                          [2, 2, 2, 2, 2],
+                          [3, 3, 3, 3, 3],
+                          [4, 4, 4, 4, 4],
+                          [5, 5, 5, 5, 5]]
+        weights_example2_conv1 = [[[0.1, 0.15, 0.20], [0.25, 0.30, 0.35], [0.40, 0.45, 0.5]]]
+        weights_example2_conv2 = [[[0.55, 0.6, 0.65], [0.70, 0.75, 0.80], [0.85, 0.90, 0.95]]]
+        output_example2 = 0.5
 
+        NN = NeuralNetwork(2, 0.1, "mse")
+        NN.addLayer(ConvolutionalLayer(number_kernels=1, kernel_size=3, activation_function="logistic",
+                                       dimension_input=[5, 5], learning_rate=0.1, bias=[2],
+                                       weights=weights_example2_conv1, stride=None, padding=None))
+        NN.addLayer(ConvolutionalLayer(number_kernels=1, kernel_size=3, activation_function="logistic",
+                                       dimension_input=[3, 3], learning_rate=0.1, bias=[2],
+                                       weights=weights_example2_conv2, stride=None, padding=None))
+        NN.addLayer(FlattenLayer(dimension_input=[3, 3]))
+        NN.addLayer(FullyConnectedLayer(number_neurons=1, activation_function="logistic", number_input=1,
+                                        learning_rate=0.1, weights=None, bias=1))
+        NN.train(input_vector=np.array(input_example2),
+                 actual_output_network=output_example2, argv="example2", epochs=1)
 
     elif argv[1] == 'example3':
-        pass
+        input_example3 = [[1, 1, 1, 1, 1, 1],
+                          [2, 2, 2, 2, 2, 2],
+                          [3, 3, 3, 3, 3, 3],
+                          [4, 4, 4, 4, 4, 4],
+                          [5, 5, 5, 5, 5, 5],
+                          [6, 6, 6, 6, 6, 6]]
+        weights_example3 = [[[0.1, 0.15, 0.20], [0.25, 0.30, 0.35], [0.40, 0.45, 0.5]],
+                            [[0.55, 0.6, 0.65], [0.70, 0.75, 0.80], [0.85, 0.90, 0.95]]]
+        output_example3 = 0.5
 
-
+        NN = NeuralNetwork(2, 0.1, "mse")
+        NN.addLayer(ConvolutionalLayer(number_kernels=1, kernel_size=3, activation_function="logistic",
+                                       dimension_input=[6, 6], learning_rate=0.1, bias=[2], weights=weights_example3,
+                                       stride=None, padding=None))
+        NN.addLayer(MaxPoolingLayer(kernel_size=2, dimension_input=[4, 4]))
+        NN.addLayer(FlattenLayer(dimension_input=[2, 2]))
+        NN.addLayer(FullyConnectedLayer(number_neurons=1, activation_function="logistic", number_input=1,
+                                        learning_rate=0.1, weights=None, bias=1))
+        NN.train(input_vector=np.array(input_example3),
+                 actual_output_network=output_example3, argv="example3", epochs=1)
 
 
 if __name__ == '__main__':
