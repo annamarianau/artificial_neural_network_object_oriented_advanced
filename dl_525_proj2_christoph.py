@@ -65,9 +65,9 @@ class Neuron:
     # Method to calculate the delta values for the neuron if in the output layer
     def calculate_delta_output(self, actual_output_network):
         if self.activation_function == "logistic":
-            return -(actual_output_network - self.output[0]) * log_act_prime(self.output[0])
+            return -(actual_output_network - self.output) * log_act_prime(self.output)
         elif self.activation_function == "linear":
-            return -(actual_output_network - self.output[0]) * lin_act_prime(self.output[0])
+            return -(actual_output_network - self.output) * lin_act_prime(self.output)
 
     # Method to calculate the delta values for the neuron if in the hidden layer
     def calculate_delta_hidden(self, delta_sum):
@@ -235,22 +235,18 @@ class NeuralNetwork:
     def backpropagation(self, input_network, actual_output):
         self.NetworkLayers.reverse()
         self.output_each_layer.reverse()
-        print("Hello BackProp")
         for index_layer, layer in enumerate(self.NetworkLayers):
             if index_layer == 0:
-                print("Servus")
                 self.current_deltas_weights = layer.backprop(layer_index=index_layer,
                                                              input_vector=self.output_each_layer,
                                                              actual_output=actual_output,
                                                              deltas_weights_previous_layer=None)
-                print("HIHIHI")
             elif index_layer > 0:
                 self.current_deltas_weights = layer.backprop(layer_index=index_layer,
                                                              input_vector=self.output_each_layer,
                                                              actual_output=actual_output,
                                                              deltas_weights_previous_layer=self.current_deltas_weights,
                                                              input_network=input_network)
-                print("Fehler")
 
     def train(self, input_network, output_network, epochs=None):
         # Train network based on given argv
