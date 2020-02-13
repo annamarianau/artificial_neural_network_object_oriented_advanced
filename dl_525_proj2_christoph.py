@@ -65,9 +65,9 @@ class Neuron:
     # Method to calculate the delta values for the neuron if in the output layer
     def calculate_delta_output(self, actual_output_network):
         if self.activation_function == "logistic":
-            return -(actual_output_network - self.output) * log_act_prime(self.output)
+            return -(actual_output_network - self.output[0]) * log_act_prime(self.output[0])
         elif self.activation_function == "linear":
-            return -(actual_output_network - self.output) * lin_act_prime(self.output)
+            return -(actual_output_network - self.output[0]) * lin_act_prime(self.output[0])
 
     # Method to calculate the delta values for the neuron if in the hidden layer
     def calculate_delta_hidden(self, delta_sum):
@@ -130,7 +130,7 @@ class FullyConnectedLayer:
         for neuron in self.neurons:
             neuron.update_weights_bias()
 
-    def backprop(self, layer_index, input_vector, actual_output, deltas_weights_previous_layer):
+    def backprop(self, layer_index, input_vector, actual_output, deltas_weights_previous_layer, input_network=None):
         # reverse the input_vector; actually contains outputs of all layers from feedforward algorithm
         # j = 0 --> output layer
         # j > 0 --> any hidden layer
@@ -141,10 +141,9 @@ class FullyConnectedLayer:
             # actual_output_network[neuron_index]: index of actual output at output neurons of network
             for neuron_index, neuron in enumerate(self.neurons):
                 neuron.delta = neuron.calculate_delta_output(actual_output_network=actual_output[neuron_index])
-                print("Delta", neuron.delta)
                 deltas_weights_output_layer.append((neuron.delta, neuron.weights))
                 # IF-statement used to select algorithm for AND / XOR case with one perceptron
-                for index_input, input in enumerate(input_vector[layer_index + 1]):
+                for index_input, input in enumerate(input_vector[layer_index+1]):
                     error_weight = neuron.delta * input
                     updated_weight = neuron.weights[index_input] - self.learning_rate * error_weight
                     neuron.updated_weights.append(updated_weight)
@@ -163,12 +162,19 @@ class FullyConnectedLayer:
                 for delta_weight in deltas_weights_previous_layer:
                     delta_sum += delta_weight[0] * delta_weight[1][neuron_index]
                 neuron.delta = neuron.calculate_delta_hidden(delta_sum=delta_sum)
-                for index_input, input in enumerate(input_vector[layer_index + 1]):
-                    error_weight = neuron.delta * input
-                    updated_weight = neuron.weights[index_input] - self.learning_rate * error_weight
-                    neuron.updated_weights.append(updated_weight)
+                if layer_index == (len(input_vector)-1):
+                    for index_input, input in enumerate(input_network):
+                        error_weight = neuron.delta * input
+                        updated_weight = neuron.weights[index_input] - self.learning_rate * error_weight
+                        neuron.updated_weights.append(updated_weight)
+                else:
+                    for index_input, input in enumerate(input_vector[layer_index + 1]):
+                        error_weight = neuron.delta * input
+                        updated_weight = neuron.weights[index_input] - self.learning_rate * error_weight
+                        neuron.updated_weights.append(updated_weight)
                 # updating Bias of neuron
                 neuron.updated_bias = neuron.bias - self.learning_rate * neuron.delta
+                print("Current weights: {} --> updated weights: {}".format(neuron.weights, neuron.updated_weights))
                 print("Current bias: {} --> updated bias: {}".format(neuron.bias, neuron.updated_bias))
 
 
@@ -223,11 +229,10 @@ class NeuralNetwork:
             # store output per layer in list to use for back-propagation algorithm
             self.output_each_layer.append(output_current_layer)
             current_input_layer = output_current_layer
-            print(output_current_layer)
         # Return the final layers output
         return output_current_layer
 
-    def backpropagation_2(self, actual_output):
+    def backpropagation(self, input_network, actual_output):
         self.NetworkLayers.reverse()
         self.output_each_layer.reverse()
         print("Hello BackProp")
@@ -238,11 +243,14 @@ class NeuralNetwork:
                                                              input_vector=self.output_each_layer,
                                                              actual_output=actual_output,
                                                              deltas_weights_previous_layer=None)
+                print("HIHIHI")
             elif index_layer > 0:
                 self.current_deltas_weights = layer.backprop(layer_index=index_layer,
                                                              input_vector=self.output_each_layer,
                                                              actual_output=actual_output,
-                                                             deltas_weights_previous_layer=self.current_deltas_weights)
+                                                             deltas_weights_previous_layer=self.current_deltas_weights,
+                                                             input_network=input_network)
+                print("Fehler")
 
     def train(self, input_network, output_network, epochs=None):
         # Train network based on given argv
@@ -251,10 +259,10 @@ class NeuralNetwork:
             loss = self.calculateloss(predicted_output=predicted_output,
                                                    actual_output=output_network,
                                                    number_samples=2)
-            print(predicted_output)
+            print("Predicted_output: ", predicted_output)
             print("Loss at output neurons: ", loss)
             print("Total Loss: ", np.sum(loss))
-            self.backpropagation_2(actual_output=predicted_output)
+            self.backpropagation(input_network=input_network, actual_output=output_network)
 
 
 class ConvolutionalLayer:
@@ -547,11 +555,11 @@ def main(argv=None):
         NN = NeuralNetwork(input_size_nn=[2, 1], learning_rate=0.5, loss_function="mse")
         # Hidden_layer
         NN.addLayer(FullyConnectedLayer(number_neurons=2, activation_function="logistic",
-                                        number_input=np.product([2, 1]), learning_rate=0.1,
+                                        number_input=np.product([2, 1]), learning_rate=0.5,
                                         weights=weights_hidden, bias=bias_hidden))
         # Output_layer
         NN.addLayer(FullyConnectedLayer(number_neurons=2, activation_function="logistic",
-                                        number_input=np.product([2, 1]), learning_rate=0.1,
+                                        number_input=np.product([2, 1]), learning_rate=0.5,
                                         weights=weights_output, bias=bias_output))
         # NN.print_network()
         # starting the training algorithm
