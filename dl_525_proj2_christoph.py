@@ -56,18 +56,27 @@ class Neuron:
     # Method for calculating output of neuron based on weighted sum
     # Computing output for neurons of ConvolutionalLayer object requires summation of all elementwise products
     def calculate_conv2d(self, input_vector):
-        return self.activate(self.bias + np.sum(np.multiply(self.weights, input_vector)))
+        return self.activate(self.bias + (np.sum(np.multiply(np.array(self.weights), input_vector))))
 
     # Computing output for neurons of a FullyConnectedLayer object requires np.dot to generate correct results
     def calculate_fully(self, input_vector):
         return self.activate(self.bias + np.dot(self.weights, input_vector))
 
     # Method to calculate the delta values for the neuron if in the output layer
-    def calculate_delta_output(self, actual_output_network):
-        if self.activation_function == "logistic":
-            return -(actual_output_network - self.output) * log_act_prime(self.output)
-        elif self.activation_function == "linear":
-            return -(actual_output_network - self.output) * lin_act_prime(self.output)
+    def calculate_delta_output(self, actual_output_network, loss_function):
+        if loss_function == "mse":
+            if self.activation_function == "logistic":
+                return -(actual_output_network - self.output) * log_act_prime(self.output)
+            elif self.activation_function == "linear":
+                return -(actual_output_network - self.output) * lin_act_prime(self.output)
+        elif loss_function == "bincrossentropy":
+            if self.activation_function == "logistic":
+                return -(self.output/actual_output_network)+((1-self.output)/(1-actual_output_network))\
+                       * log_act_prime(self.output)
+            elif self.activation_function == "linear":
+                return -(self.output/actual_output_network)+((1-self.output)/(1-actual_output_network))\
+                       * lin_act_prime(self.output)
+
 
     # Method to calculate the delta values for the neuron if in the hidden layer
     def calculate_delta_hidden(self, delta_sum):
@@ -130,7 +139,8 @@ class FullyConnectedLayer:
         for neuron in self.neurons:
             neuron.update_weights_bias()
 
-    def backprop(self, layer_index, input_vector, actual_output, deltas_weights_previous_layer, input_network=None):
+    def backprop(self, layer_index, actual_output, loss_function, input_layer,
+                 deltas_weights=None, input_network=None):
         # reverse the input_vector; actually contains outputs of all layers from feedforward algorithm
         # j = 0 --> output layer
         # j > 0 --> any hidden layer
@@ -140,17 +150,29 @@ class FullyConnectedLayer:
             # Loop: Compute the delta for each neuron in output_neuron
             # actual_output_network[neuron_index]: index of actual output at output neurons of network
             for neuron_index, neuron in enumerate(self.neurons):
-                neuron.delta = neuron.calculate_delta_output(actual_output_network=actual_output[neuron_index])
+                neuron.delta = neuron.calculate_delta_output(actual_output_network=actual_output[neuron_index],
+                                                             loss_function=loss_function)
+
                 deltas_weights_output_layer.append((neuron.delta, neuron.weights))
-                # IF-statement used to select algorithm for AND / XOR case with one perceptron
-                for index_input, input in enumerate(input_vector[layer_index+1]):
+                for index_input, input in enumerate(input_layer):
                     error_weight = neuron.delta * input
                     updated_weight = neuron.weights[index_input] - self.learning_rate * error_weight
                     neuron.updated_weights.append(updated_weight)
                     neuron.updated_bias = neuron.bias - self.learning_rate * neuron.delta
-                print("Current weights: {} --> updated weights: {}".format(neuron.weights, neuron.updated_weights))
-                print("Current bias: {} --> updated bias: {}".format(neuron.bias, neuron.updated_bias))
-            return deltas_weights_output_layer
+                print()
+                print("Current weights: {} \n--> updated weights: \n{}".format(np.round(neuron.weights, 6),
+                                                                           np.round(neuron.updated_weights, 6)))
+                print("Current bias: {} \n--> updated bias: {}".format(np.round(neuron.bias, 6),
+                                                                     np.round(neuron.updated_bias, 6)))
+            delta_sums = []
+            # compute delta_sum for next layer in backprop
+            for i in range(len(input_layer)):
+                delta_sum = 0
+                for neuron_index, neuron in enumerate(self.neurons):
+                    delta_sum += neuron.delta * neuron.weights[i]
+                delta_sums.append(delta_sum)
+            return (deltas_weights_output_layer, delta_sums)
+
         elif layer_index > 0:
             # Creating a list which contains all deltas of all output neurons
             deltas_weights_output_layer = []
@@ -161,24 +183,28 @@ class FullyConnectedLayer:
                 delta_sum = 0
                 # computing delta_sum based on the delta values from neuron in previous layer and the weights
                 # connected between those neurons and the neuron in current layer (currently in loop)
-                for delta_weight in deltas_weights_previous_layer:
+                for delta_weight in deltas_weights:
                     delta_sum += delta_weight[0] * delta_weight[1][neuron_index]
                 neuron.delta = neuron.calculate_delta_hidden(delta_sum=delta_sum)
                 deltas_weights_output_layer.append((neuron.delta, neuron.weights))
-                if layer_index == (len(input_vector)-1):
+                if layer_index == (len(input_layer)-1):
                     for index_input, input in enumerate(input_network):
                         error_weight = neuron.delta * input
                         updated_weight = neuron.weights[index_input] - self.learning_rate * error_weight
                         neuron.updated_weights.append(updated_weight)
                 else:
-                    for index_input, input in enumerate(input_vector[layer_index + 1]):
+                    for index_input, input in enumerate(input_layer[layer_index+1]):
                         error_weight = neuron.delta * input
                         updated_weight = neuron.weights[index_input] - self.learning_rate * error_weight
                         neuron.updated_weights.append(updated_weight)
                 # updating Bias of neuron
                 neuron.updated_bias = neuron.bias - self.learning_rate * neuron.delta
-                #print("Current weights: {} --> updated weights: {}".format(neuron.weights, neuron.updated_weights))
-                #print("Current bias: {} --> updated bias: {}".format(neuron.bias, neuron.updated_bias))
+                print()
+                print("Current weights: {} \n--> updated weights: \n{}".format(np.round(neuron.weights, 6),
+                                                                           np.round(neuron.updated_weights, 6)))
+                print("Current bias: {} \n--> updated bias: {}".format(np.round(neuron.bias, 6),
+                                                                     np.round(neuron.updated_bias, 6)))
+            print()
             return deltas_weights_output_layer
 
 
@@ -190,19 +216,10 @@ class NeuralNetwork:
         self.loss_function = loss_function
         self.NetworkLayers = []
         self.output_each_layer = []
-        self.current_deltas_weights = None
+        self.propagated_deltas_weights = None
 
     def addLayer(self, layer_object):
         self.NetworkLayers.append(layer_object)
-
-    def print_network(self):
-        print(self.NetworkLayers)
-        for layer in self.NetworkLayers:
-            print(layer)
-            print(layer.neurons)
-            for neuron in layer.neurons:
-                print(neuron.weights)
-                print(neuron.bias)
 
     # Method to compute the losses at each output neuron
     # mse_loss: Mean Squared Error
@@ -213,7 +230,7 @@ class NeuralNetwork:
         if self.loss_function == "mse":
             return mse_loss(predicted_output=predicted_output,
                             actual_output=actual_output,
-                            number_samples=number_samples)
+                            number_samples=1)
 
         elif self.loss_function == "bincrossentropy":
             return bin_cross_entropy_loss(predicted_output=predicted_output,
@@ -228,36 +245,123 @@ class NeuralNetwork:
             layer.update_weights_bias()
 
     def feed_forward(self, current_input_layer):
+        print()
+        print("Feed-forward Algorithm:")
+        print("#######################")
         global output_current_layer
         for i, layer in enumerate(self.NetworkLayers):
             output_current_layer = layer.calculate(input_vector=current_input_layer)
             # store output per layer in list to use for back-propagation algorithm
             self.output_each_layer.append(output_current_layer)
             current_input_layer = output_current_layer
-            print(output_current_layer, sep='\n')
+            print("Layer {}: ".format(layer))
+            print(np.round(output_current_layer, 7), sep='\n')
             #print("Output for layer {}: {}".format(layer, output_current_layer))
         # Return the final layers output
         return output_current_layer
 
-    def backpropagation(self, input_network, actual_output):
-        self.NetworkLayers.reverse()
+    def back_propagation(self, input_network, actual_output):
+        print("\n\n")
+        print("Back-propagation Algorithm:")
+        print("###########################")
+        # Reversing list containing all layer objects --> Backpropagation starts at the output layer
+        self.NetworkLayers.reverse() # needed again at end of code for next sample or feed-forward run
+        # Reversing list containing each output of all layer objects
+        self.output_each_layer.reverse()
+        print()
+        # For loop to list through network
+        for layer_index, layer in enumerate(self.NetworkLayers):
+            print("Current Layer: {}".format(layer))
+            # Do Back-propagation for output layer
+            # In all cases output layer is a FullyConnectedLayer object
+            # actual_output: Actual output of network
+            if layer_index == 0:
+                self.propagated_deltas_weights = layer.backprop(layer_index=layer_index,
+                                                           actual_output=actual_output,
+                                                           loss_function=self.loss_function,
+                                                           # input layer is output of previous layer (FlattenLayer)
+                                                           input_layer=self.output_each_layer[layer_index+1],
+                                                           deltas_weights=None,
+                                                           input_network=None)
+                print(self.propagated_deltas_weights)
+                print()
+
+            # If-statement to handle back-propagation for all intermediate layers
+            if layer_index > 0:
+                # More if-statements to handle each layer object on its own --> arguments
+                if isinstance(layer, FullyConnectedLayer):
+                    self.propagated_deltas_weights = layer.backprop(layer_index=layer_index,
+                                                                    actual_output=actual_output,
+                                                                    loss_function=self.loss_function,
+                                                                    # input layer is output of previous layer (FlattenLayer)
+                                                                    input_layer=self.output_each_layer,
+                                                                    deltas_weights=self.propagated_deltas_weights[0],
+                                                                    input_network=input_network)
+                    print(self.propagated_deltas_weights)
+                    print()
+                # Else if statement for the FlattenLayer object
+                # returns deltas and weights of previous layer in terms of back-propagation algorithm
+                elif isinstance(layer, FlattenLayer):
+                    self.propagated_deltas_weights = layer.backprop(deltas_weights=self.propagated_deltas_weights[1])
+                    print(self.propagated_deltas_weights)
+                    print()
+
+                elif isinstance(layer, MaxPoolingLayer):
+                    self.propagated_deltas_weights = layer.backprop(deltas_weights=self.propagated_deltas_weights)
+                    print(self.propagated_deltas_weights)
+                    print()
+
+                elif isinstance(layer, ConvolutionalLayer):
+                    self.propagated_deltas_weights = layer.backprop(maxpool_masks=self.propagated_deltas_weights[1],
+                                                                    deltas_weights=self.propagated_deltas_weights[0])
+                    print(self.propagated_deltas_weights)
+                    print()
+                    pass
+
+
+
+
+            if layer_index == 3:
+                break
+
+
+
+
+
+        """     
+        
+        
         self.output_each_layer.reverse()
         for index_layer, layer in enumerate(self.NetworkLayers):
-            #print("Current Layer: ", layer)
+            print("Current Layer: ", layer)
             if index_layer == 0:
                 self.current_deltas_weights = layer.backprop(layer_index=index_layer,
                                                              input_vector=self.output_each_layer,
                                                              actual_output=actual_output,
+                                                             loss_function=loss_function,
                                                              deltas_weights_previous_layer=None)
                 print(self.current_deltas_weights)
             elif index_layer > 0:
-                self.current_deltas_weights = layer.backprop(layer_index=index_layer,
-                                                             input_vector=self.output_each_layer,
-                                                             actual_output=actual_output,
-                                                             deltas_weights_previous_layer=self.current_deltas_weights,
-                                                             input_network=input_network)
+                if isinstance(layer, ConvolutionalLayer):
+                    self.current_deltas_weights = layer.backprop(layer_index=index_layer,
+                                                                 input_vector=self.output_each_layer,
+                                                                 actual_output=actual_output,
+                                                                 loss_function=loss_function,
+                                                                 deltas_weights_previous_layer=self.current_deltas_weights[0],
+                                                                 input_network=input_network,
+                                                                 maxpool_mask=self.current_deltas_weights[1])
+                    print(self.current_deltas_weights)
+                else:
+                    self.current_deltas_weights = layer.backprop(layer_index=index_layer,
+                                                                 input_vector=self.output_each_layer,
+                                                                 actual_output=actual_output,
+                                                                 loss_function=loss_function,
+                                                                 deltas_weights_previous_layer=self.current_deltas_weights,
+                                                                 input_network=input_network)
+                    print(self.current_deltas_weights)
             if index_layer == 3:
                 break
+        """
 
 
     def train(self, input_network, output_network, epochs=None):
@@ -267,11 +371,12 @@ class NeuralNetwork:
             loss = self.calculateloss(predicted_output=predicted_output,
                                                    actual_output=output_network,
                                                    number_samples=1)
-            print("Actual output", output_network)
-            print("Predicted_output: ", predicted_output)
-            print("Loss at output neurons: ", loss)
-            print("Total Loss: ", np.sum(loss))
-            self.backpropagation(input_network=input_network, actual_output=output_network)
+            #print("Actual output", output_network)
+            #print("Predicted_output: ", predicted_output)
+            #print("Loss at output neurons: ", loss)
+            print("Total Loss: ", np.round(np.sum(loss), 5))
+            self.back_propagation(input_network=input_network,
+                                 actual_output=output_network)
 
 
 class ConvolutionalLayer:
@@ -341,9 +446,13 @@ class ConvolutionalLayer:
                 kern_edge_r = self.kernel_size
                 output_neurons_row = []
                 for neuron in neuron_row:
-                    # generating a snippet of input matrix based on size of kernel and location
-                    reshape_input_vector = input_vector[kern_edge_top:kern_edge_bot, kern_edge_l:kern_edge_r]
-                    neuron.output = neuron.calculate_conv2d(input_vector=reshape_input_vector)
+                    if self.dimension_input[0] == self.kernel_size:
+                        print(input_vector)
+                        neuron.output = neuron.calculate_conv2d(input_vector=input_vector)
+                    else:
+                        # generating a snippet of input matrix based on size of kernel and location
+                        reshaped_input_vector = input_vector[kern_edge_top:kern_edge_bot, kern_edge_l:kern_edge_r]
+                        neuron.output = neuron.calculate_conv2d(input_vector=reshaped_input_vector)
                     # Updating the location of kernel for next neuron via stride
                     kern_edge_l += self.stride
                     kern_edge_r += self.stride
@@ -354,8 +463,34 @@ class ConvolutionalLayer:
             output_feature_maps.append(output_feature_map)
         return output_feature_maps
 
-    def backprop(self, layer_index, input_vector, actual_output, deltas_weights_previous_layer=None, input_network=None):
-        pass
+    def backprop(self, maxpool_masks, deltas_weights):
+        # First Step: Compute deltas for each neuron, where required --> maxpooling
+
+        for maxpool_mask in maxpool_masks:
+            print(maxpool_mask)
+        """
+        for mask_index, maxpool_mask in enumerate(maxpool_masks):
+            for row_index, row in enumerate(maxpool_mask):
+                for column_index, mask_value in enumerate(row):
+                    neuron = self.feature_maps_layer[mask_index][row_index][column_index]
+                    if mask_value == 1:
+                        deltas_weights_output_layer = []
+                        # Loop: Compute the sum of deltas for each neuron in current layer
+                        for neuron_index, neuron in enumerate(self.neurons):
+                            # print("Updated Weights and bias for neuron {} in hidden layer {} seen from output layer:".format(neuron_index + 1, index_layer))
+                            # setting sum of deltas to 0 for each new neuron
+                            delta_sum = 0
+                            # computing delta_sum based on the delta values from neuron in previous layer and the weights
+                            # connected between those neurons and the neuron in current layer (currently in loop)
+                            for delta_weight in deltas_weights:
+                                delta_sum += delta_weight[0] * delta_weight[1][neuron_index]
+                            neuron.delta = neuron.calculate_delta_hidden(delta_sum=delta_sum)
+                            deltas_weights_output_layer.append((neuron.delta, neuron.weights))
+
+                    elif mask_value == 0:
+                        pass
+        """
+        return ("End of backprop - conv2d")
 
 
 
@@ -366,7 +501,7 @@ class MaxPoolingLayer:
         self.dimension_input = dimension_input
         self.stride = kernel_size
         self.maxpool_feature_maps = []
-        self.maxpool_index_maps = []
+        self.maxpool_index_masks = []
 
     def calculate(self, input_vector):
         input_vector = np.array(input_vector)
@@ -377,49 +512,49 @@ class MaxPoolingLayer:
             kern_edge_top = 0
             kern_edge_bot = self.kernel_size
             maxpool_feature_map = []
-            maxpool_index_map = []
+            maxpool_index_mask = []
             for stride_index_row in range(number_strides_rows):
                 kern_edge_l = 0
                 kern_edge_r = self.kernel_size
                 maxpool_row = []
                 for stride_index_col in range(number_strides_cols):
-                    maxpool = np.max(input_vector[kernel_index][kern_edge_top:kern_edge_bot, kern_edge_l:kern_edge_r])
+                    current_maxpool = input_vector[kernel_index][kern_edge_top:kern_edge_bot, kern_edge_l:kern_edge_r]
+                    print(current_maxpool)
+                    maxpool = np.max(current_maxpool)
                     # print("Matrix: ", input_vector[kernel_index])
                     # print("Matrix snippet: ", input_vector[kernel_index][kern_edge_top:kern_edge_bot, kern_edge_l:kern_edge_r])
                     # print("Maxpool value :", maxpool)
                     maxpool_index = np.where(input_vector[kernel_index] == maxpool)
+                    #print("Maxpool value {} and index {}".format(maxpool, maxpool_index))
                     # print("Maxpool index: ", maxpool_index)
-                    maxpool_index_map.append((maxpool, maxpool_index))
+                    maxpool_index_mask.append((maxpool, maxpool_index))
                     maxpool_row.append(maxpool)
                     kern_edge_l += self.stride
                     kern_edge_r += self.stride
                 maxpool_feature_map.append(maxpool_row)
                 kern_edge_top += self.stride
                 kern_edge_bot += self.stride
-            self.maxpool_index_maps.append(maxpool_index_map)
+            self.maxpool_index_masks.append(maxpool_index_mask)
             self.maxpool_feature_maps.append(maxpool_feature_map)
         return self.maxpool_feature_maps
 
-    def backprop(self, layer_index, input_vector, actual_output, deltas_weights_previous_layer=None, input_network=None):
-        # creating a list which holds all maxpool_maps
-        maxpool_backprop = []
-        # Loop through all maxpool masks (# mask depends on # feature masks)
-        for maxpool_mask in self.maxpool_index_maps:
+    def backprop(self, deltas_weights):
+        # List containing masks with all index locations and value of maxpooling process
+        maxpool_masks = []
+        # Loop through each maxpool_index_mask --> locations of max values
+        for maxpool_index_mask in self.maxpool_index_masks:
             # Generating a matrix with zeros based on the dimension of feature maps for previous layer (Conv2D)
-            maxpool_backprop_map = np.zeros(self.dimension_input)
-            # Loop through maxpool_mask for each maxvalue determined in feed forward algorithm
-            # max_value_info contains the maxvalue and its location in the feature map
-            for max_value_info in maxpool_mask:
+            maxpool_mask = np.zeros(self.dimension_input)
+            for maxpool_index in maxpool_index_mask:
                 # set variables:    value of max_value is stored in tuple max_value_info at index 0
                 #                   index of max_value is stored in tuple max_value_info at index 1
-                max_value = max_value_info[0]
-                max_value_index = max_value_info[1]
+                max_value = maxpool_index[0]
+                max_value_index = maxpool_index[1]
                 # set value of zero matrix equal to max_value for its respective location
-                maxpool_backprop_map[max_value_index] = max_value
+                maxpool_mask[max_value_index] = max_value
             # append the matrix to a list; number of matrices depend on number of feature maps of previous layer
-            maxpool_backprop.append(maxpool_backprop_map)
-        # return list containing all max values for each feature map
-        return(maxpool_backprop)
+            maxpool_masks.append(maxpool_mask)
+        return(deltas_weights, maxpool_masks)
 
 
 class FlattenLayer:
@@ -429,8 +564,9 @@ class FlattenLayer:
     def calculate(self, input_vector):
         return np.array(input_vector).flatten()
 
-    def backprop(self, layer_index, input_vector, actual_output, deltas_weights_previous_layer=None, input_network=None):
-        return input_vector[layer_index+1]
+    def backprop(self, deltas_weights):
+        print()
+        return deltas_weights
 
 
 """
@@ -460,19 +596,6 @@ def lin_act_prime(z):
     return 1
 
 
-# rectified linear activation function
-def ReLU_act(z):
-    # return 0 if x<= 0 or x if x>0
-    return np.maximum(0, z)
-
-
-def ReLU_act_prime(z):
-    if z <= 0:
-        return 0
-    elif z > 0:
-        return 1
-
-
 """
 Loss Functions
 - Mean squared error (mse_loss); https://en.wikipedia.org/wiki/Mean_squared_error
@@ -495,6 +618,7 @@ def bin_cross_entropy_loss(predicted_output, actual_output, number_samples):
                                + (1 - actual_output) * np.log(1 - predicted_output))
 
 
+
 # Driver code main()
 def main(argv=None):
     # First List: List holding all weights for each kernel
@@ -503,24 +627,25 @@ def main(argv=None):
     # print(NN.NetworkLayers[layer_index].neurons_layer[kernel_index_neurons][row_index_neurons][column_index_neurons])
     # cov_res = [4,3,4], [2,4,3], [2, 3, 4]
     if argv[1] == 'example1':
-        input_example1 = [[1, 1, 1, 0, 0],
+        input_example1 = [[1, 1, 1, 0, 1],
                           [0, 1, 1, 1, 0],
                           [0, 0, 1, 1, 1],
                           [0, 0, 1, 1, 0],
                           [0, 1, 1, 0, 0]]
-        weights_example1 = [[[-0.5321357, -0.12474307, 0.35251492],
-                             [-0.5045868, 0.38132334, 0.52816117],
-                             [0.57359624, 0.49421835, 0.02058202]]]
+        weights_example1 = [[[0.05, 0.10, 0.15],[0.20,0.25,0.30],[0.35,0.40,0.45]]]
+
+        weights_dense = [[0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9]]
+        bias_dense = [1.5]
 
         output_example1 = 0.5
 
         NN = NeuralNetwork(input_size_nn=2, learning_rate=0.01, loss_function="mse")
         NN.addLayer(ConvolutionalLayer(number_kernels=1, kernel_size=3, activation_function="logistic",
-                                       dimension_input=[5, 5], learning_rate=0.01, bias=[0], weights=weights_example1,
+                                       dimension_input=[5, 5], learning_rate=0.01, bias=[0.95], weights=weights_example1,
                                        stride=None, padding=None))
         NN.addLayer(FlattenLayer(dimension_input=[3, 3]))
         NN.addLayer(FullyConnectedLayer(number_neurons=1, activation_function="logistic",
-                                        number_input=np.product([3, 3]), learning_rate=0.01, weights=None, bias=1))
+                                        number_input=np.product([3, 3]), learning_rate=0.01, weights=weights_dense, bias=bias_dense))
         NN.train(input_network=np.array(input_example1),
                  output_network=[output_example1],
                  epochs=1)
@@ -544,7 +669,7 @@ def main(argv=None):
                                        weights=weights_example2_conv2, stride=None, padding=None))
         NN.addLayer(FlattenLayer(dimension_input=[3, 3]))
         NN.addLayer(FullyConnectedLayer(number_neurons=1, activation_function="logistic",
-                                        number_input=np.product([3, 3]), learning_rate=0.1, weights=None, bias=1))
+                                        number_input=np.product([1]), learning_rate=0.1, weights=None, bias=1))
         NN.train(input_network=np.array(input_example2),
                  output_network=[output_example2],
                  epochs=1)
@@ -570,7 +695,7 @@ def main(argv=None):
         NN = NeuralNetwork(input_size_nn=2, learning_rate=0.01, loss_function="mse")
         NN.addLayer(ConvolutionalLayer(number_kernels=2, kernel_size=3, activation_function="logistic",
                                        dimension_input=[6, 6], learning_rate=0.01, bias=bias_example3, weights=weights_example3,
-                                       stride=None, padding=None))
+                                       stride=1, padding=None))
         NN.addLayer(MaxPoolingLayer(kernel_size=2, dimension_input=[4, 4]))
         NN.addLayer(FlattenLayer(dimension_input=[2, 2]))
         NN.addLayer(FullyConnectedLayer(number_neurons=1, activation_function="logistic",
