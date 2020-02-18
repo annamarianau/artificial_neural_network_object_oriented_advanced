@@ -247,11 +247,11 @@ class NeuralNetwork:
         print("#######################")
         global output_current_layer
         for i, layer in enumerate(self.NetworkLayers):
+            print("Layer {}: ".format(layer))
             output_current_layer = layer.calculate(input_vector=current_input_layer)
             # store output per layer in list to use for back-propagation algorithm
             self.output_each_layer.append(output_current_layer)
             current_input_layer = output_current_layer
-            print("Layer {}: ".format(layer))
             print(np.round(output_current_layer, 7), sep='\n')
         # Return the final layers output
         return output_current_layer
@@ -299,28 +299,26 @@ class NeuralNetwork:
                 # returns deltas and weights of previous layer in terms of back-propagation algorithm
                 elif isinstance(layer, FlattenLayer):
                     self.propagated_deltas_weights = layer.backprop(deltas_weights=self.propagated_deltas_weights[1])
-                    print(self.propagated_deltas_weights)
                     print()
 
                 elif isinstance(layer, MaxPoolingLayer):
                     self.propagated_deltas_weights = layer.backprop(deltas_weights=self.propagated_deltas_weights)
-                    #print(self.propagated_deltas_weights)
                     print()
 
                 elif isinstance(layer, ConvolutionalLayer):
                     # If statement to check whether a maxpoolinglayer was used before the convolutional layer
                     if isinstance(self.NetworkLayers[layer_index - 1], MaxPoolingLayer):
-                        self.propagated_deltas_weights = layer.backprop(delta_sums=self.propagated_deltas_weights[0],
+                        self.propagated_deltas_weights = layer.backprop(layer_index=layer_index,
+                                                                        delta_sums=self.propagated_deltas_weights[1],
                                                                         input_network=input_network,
-                                                                        maxpool_masks=self.propagated_deltas_weights[1])
-                        #print(self.propagated_deltas_weights)
+                                                                        maxpool_masks=None,
+                                                                        input_layer=self.output_each_layer)
                     else:
                         self.propagated_deltas_weights = layer.backprop(layer_index=layer_index,
                                                                         delta_sums=self.propagated_deltas_weights,
                                                                         input_network=input_network,
                                                                         maxpool_masks=None,
                                                                         input_layer=self.output_each_layer)
-                        #print(self.propagated_deltas_weights)
 
 
     def train(self, input_network, output_network, epochs=None):
@@ -422,67 +420,52 @@ class ConvolutionalLayer:
     def backprop(self, layer_index, delta_sums, input_network, maxpool_masks=None, input_layer=None):
         # First Step: Compute deltas for each neuron, where required --> maxpooling
         # If previous layer was no MaxPoolingLayer object, than ignor the following step
-
-        if maxpool_masks is None:
-            delta_sums_kernels = []
-            for feature_map_index, feature_map in enumerate(self.feature_maps_layer):
-                if layer_index == (len(input_layer) - 1):
-                    pass
-                else:
-                    input_layer = np.array(input_layer[layer_index + 1][feature_map_index])
-                # We need to generate the gradients for each neuron
-                sum_gradient = np.zeros((self.kernel_size, self.kernel_size))
-                # Nested for-loop to get access to each neuron
-                for row_neuron, row_feature_map in enumerate(feature_map):
-                    for col_neuron, neuron in enumerate(row_feature_map):
-                        # Shows
-                        #print("Neuron {} at Row / Col ({}, {}).".format(neuron, row_neuron, col_neuron))
-                        neuron.delta = neuron.calculate_delta_hidden(
-                            delta_sums[feature_map_index][row_neuron][col_neuron])
-                        # Reshaping input matrix into input w.r.t current neuron
-                        # if statement to give correct input in layer
-                        # if end of network reached provide input in network
-                        if layer_index == (len(input_layer) - 1):
-                            current_input = np.array(input_network[row_neuron:self.kernel_size + row_neuron,
-                                                     col_neuron:self.kernel_size + col_neuron])
-                        else:
-                            current_input = np.array(input_layer[row_neuron:self.kernel_size + row_neuron,
-                                                     col_neuron:self.kernel_size + col_neuron])
-                            print(current_input)
-                        # This is the convolution!
-                        sum_gradient += np.multiply(current_input, neuron.delta)
-                delta_sums_kernels.append(sum_gradient)
-                # generating updated_weights and biases per kernel index
-                updated_weight = self.weights[feature_map_index] - np.multiply(self.learning_rate, sum_gradient)
-                print(updated_weight)
-                updated_bias = self.bias[feature_map_index] - np.multiply(self.learning_rate, np.sum(sum_gradient))
-                print(updated_bias)
-                # update weights for each neuron in this feature_map
-                for row_feature_map in feature_map:
-                    for neuron in row_feature_map:
-                        neuron.updated_weights.append(updated_weight)
-                        neuron.updated_bias = updated_bias
-
-            print(delta_sums_kernels)
-
-            return delta_sums_kernels
-
-
-
-
-
-
-
-
-
-            # Example 3 - masks
-        else:
-            pass
-
-
-
-
-
+        # generating number of neurons
+        neurons_row = round(
+            ((self.dimension_input[0] - self.kernel_size) / self.stride + 1))  # number of rows with neurons
+        neurons_column = round(
+            ((self.dimension_input[1] - self.kernel_size) / self.stride + 1))  # number of columns with neurons
+        self.number_neurons = neurons_row * neurons_column * self.number_kernels  # number of total neurons in layer
+        delta_sums_kernels = []
+        for feature_map_index, feature_map in enumerate(self.feature_maps_layer):
+            if layer_index == (len(input_layer) - 1):
+                pass
+            else:
+                input_layer = np.array(input_layer[layer_index + 1][feature_map_index])
+            # We need to generate the gradients for each neuron
+            sum_gradient = np.zeros((self.kernel_size, self.kernel_size))
+            # Nested for-loop to get access to each neuron
+            for row_neuron, row_feature_map in enumerate(feature_map):
+                for col_neuron, neuron in enumerate(row_feature_map):
+                    #print("Neuron {} at Row / Col ({}, {}).".format(neuron, row_neuron, col_neuron))
+                    #print("Delta sum:", delta_sums[feature_map_index][row_neuron][col_neuron])
+                    neuron.delta = neuron.calculate_delta_hidden(
+                        delta_sums[feature_map_index][row_neuron][col_neuron])
+                    # Reshaping input matrix into input w.r.t current neuron
+                    # if statement to give correct input in layer
+                    # if end of network reached provide input in network
+                    if layer_index == (len(input_layer) - 1):
+                        current_input = np.array(input_network[row_neuron:self.kernel_size + row_neuron,
+                                                 col_neuron:self.kernel_size + col_neuron])
+                    else:
+                        current_input = np.array(input_layer[row_neuron:self.kernel_size + row_neuron,
+                                                 col_neuron:self.kernel_size + col_neuron])
+                    # add for loop which walks down the single input areas with weights / gradients
+                    # This is the convolution!
+                    sum_gradient += np.multiply(current_input, neuron.delta)
+            delta_sums_kernels.append(sum_gradient)
+            # generating updated_weights and biases per kernel index
+            updated_weight = self.weights[feature_map_index] - np.multiply(self.learning_rate, sum_gradient)
+            print("Weights: \n", updated_weight)
+            updated_bias = self.bias[feature_map_index] - np.multiply(self.learning_rate, np.sum(sum_gradient))
+            print(updated_bias)
+            # update weights for each neuron in this feature_map
+            for row_feature_map in feature_map:
+                for neuron in row_feature_map:
+                    neuron.updated_weights.append(updated_weight)
+                    neuron.updated_bias = updated_bias
+        # return deltas for next layer in back prop
+        return delta_sums_kernels
 
 
 class MaxPoolingLayer:
@@ -506,21 +489,23 @@ class MaxPoolingLayer:
             for stride_index_row in range(number_strides_rows):
                 kern_edge_l = 0
                 kern_edge_r = self.kernel_size
+                maxpool_index_row = []
                 maxpool_row = []
                 for stride_index_col in range(number_strides_cols):
+                    # Set matrix for current maxpool kernel from feature map
                     current_maxpool = input_vector[kernel_index][kern_edge_top:kern_edge_bot, kern_edge_l:kern_edge_r]
-                    print(current_maxpool)
-                    maxpool = np.max(current_maxpool)
-                    # print("Matrix: ", input_vector[kernel_index])
-                    # print("Matrix snippet: ", input_vector[kernel_index][kern_edge_top:kern_edge_bot, kern_edge_l:kern_edge_r])
-                    # print("Maxpool value :", maxpool)
-                    maxpool_index = np.where(input_vector[kernel_index] == maxpool)
-                    # print("Maxpool value {} and index {}".format(maxpool, maxpool_index))
-                    # print("Maxpool index: ", maxpool_index)
-                    maxpool_index_mask.append((maxpool, maxpool_index))
-                    maxpool_row.append(maxpool)
+                    # find max value in current maxpool matrix
+                    maxpool_value = np.max(current_maxpool)
+                    # Get index of max value in current maxpool matrix
+                    maxpool_index = np.where(current_maxpool == maxpool_value)
+                    # Set current index in context of whole input matrix
+                    maxpool_index_input = [stride_index_row*self.stride+maxpool_index[0],
+                                           stride_index_col*self.stride+maxpool_index[1]]
+                    maxpool_index_row.append((maxpool_value, maxpool_index_input))
+                    maxpool_row.append(maxpool_value)
                     kern_edge_l += self.stride
                     kern_edge_r += self.stride
+                maxpool_index_mask.append(maxpool_index_row)
                 maxpool_feature_map.append(maxpool_row)
                 kern_edge_top += self.stride
                 kern_edge_bot += self.stride
@@ -531,19 +516,19 @@ class MaxPoolingLayer:
     def backprop(self, deltas_weights):
         # List containing masks with all index locations and value of maxpooling process
         maxpool_masks = []
-        # Loop through each maxpool_index_mask --> locations of max values
-        for maxpool_index_mask in self.maxpool_index_masks:
-            # Generating a matrix with zeros based on the dimension of feature maps for previous layer (Conv2D)
+        for i, maxpool_index_mask in enumerate(self.maxpool_index_masks):
             maxpool_mask = np.zeros(self.dimension_input)
-            for maxpool_index in maxpool_index_mask:
-                # set variables:    value of max_value is stored in tuple max_value_info at index 0
-                #                   index of max_value is stored in tuple max_value_info at index 1
-                max_value = maxpool_index[0]
-                max_value_index = maxpool_index[1]
-                # set value of zero matrix equal to max_value for its respective location
-                maxpool_mask[max_value_index] = max_value
-            # append the matrix to a list; number of matrices depend on number of feature maps of previous layer
+        # Loop through each maxpool_index_mask --> locations of max values
+            for j, maxpool_index_mask_row in enumerate(maxpool_index_mask):
+                for k, maxpool in enumerate(maxpool_index_mask_row):
+                    maxpool_index = maxpool[1]
+                    # set gradient from previous layer equal to location of max value of pooling layer (feed forward)
+                    row_index = maxpool[1][0][0]
+                    col_index = maxpool[1][1][0]
+                    maxpool_mask[row_index][col_index] = deltas_weights[i][j][k]
             maxpool_masks.append(maxpool_mask)
+            # two variables are returned, situational if maxpool is included network or not
+        print(maxpool_masks)
         return deltas_weights, maxpool_masks
 
 
@@ -690,15 +675,15 @@ def main(argv=None):
         weights_full = [[0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8]]
         bias_full = [1.5]
         output_example3 = 0.5
-        NN = NeuralNetwork(input_size_nn=2, learning_rate=0.01, loss_function="mse")
+        NN = NeuralNetwork(input_size_nn=2, learning_rate=0.5, loss_function="mse")
         NN.addLayer(ConvolutionalLayer(number_kernels=2, kernel_size=3, activation_function="logistic",
-                                       dimension_input=[6, 6], learning_rate=0.01, bias=bias_example3,
+                                       dimension_input=[6, 6], learning_rate=0.5, bias=bias_example3,
                                        weights=weights_example3,
                                        stride=1, padding=None))
         NN.addLayer(MaxPoolingLayer(kernel_size=2, dimension_input=[4, 4]))
         NN.addLayer(FlattenLayer(dimension_input=[2, 2]))
         NN.addLayer(FullyConnectedLayer(number_neurons=1, activation_function="logistic",
-                                        number_input=8, learning_rate=0.01, weights=weights_full, bias=bias_full))
+                                        number_input=8, learning_rate=0.5, weights=weights_full, bias=bias_full))
         NN.train(input_network=np.array(input_example3),
                  output_network=[output_example3],
                  epochs=1)
