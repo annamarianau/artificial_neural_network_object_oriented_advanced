@@ -150,14 +150,10 @@ class FullyConnectedLayer:
             for neuron_index, neuron in enumerate(self.neurons):
                 neuron.delta = neuron.calculate_delta_output(actual_output_network=actual_output[neuron_index],
                                                              loss_function=loss_function)
-                print("Delta", neuron.delta)
                 deltas_weights_output_layer.append((neuron.delta, neuron.weights))
                 for index_input, current_input in enumerate(input_layer):
                     error_weight = neuron.delta * current_input
-                    print("Error weight", error_weight)
-                    print("Weight: ", neuron.weights[index_input])
                     updated_weight = neuron.weights[index_input] - self.learning_rate * error_weight
-                    print(updated_weight)
                     neuron.updated_weights.append(updated_weight)
                     neuron.updated_bias = neuron.bias - self.learning_rate * neuron.delta
                 print()
@@ -170,8 +166,6 @@ class FullyConnectedLayer:
             for i in range(len(input_layer)):
                 delta_sum = 0
                 for neuron_index, neuron in enumerate(self.neurons):
-                    print("Delta", neuron.delta)
-                    print("Weight [i]:", neuron.weights[i])
                     delta_sum += neuron.delta * neuron.weights[i]
                 delta_sums.append(delta_sum)
             return deltas_weights_output_layer, delta_sums
@@ -284,7 +278,6 @@ class NeuralNetwork:
                                                                 input_layer=self.output_each_layer[layer_index + 1],
                                                                 deltas_weights=None,
                                                                 input_network=None)
-                print(self.propagated_deltas_weights)
                 print()
 
             # If-statement to handle back-propagation for all intermediate layers
@@ -303,7 +296,14 @@ class NeuralNetwork:
                 # Else if statement for the FlattenLayer object
                 # returns deltas and weights of previous layer in terms of back-propagation algorithm
                 elif isinstance(layer, FlattenLayer):
-                    self.propagated_deltas_weights = layer.backprop(deltas_weights=self.propagated_deltas_weights[1])
+                    if isinstance(self.NetworkLayers[layer_index+1], MaxPoolingLayer):
+                        self.propagated_deltas_weights = layer.backprop(deltas_weights=self.propagated_deltas_weights[1],
+                                                                    Maxpool=True)
+                    else:
+                        self.propagated_deltas_weights = layer.backprop(
+                            deltas_weights=self.propagated_deltas_weights[1], Maxpool=False)
+
+
                     print()
 
                 elif isinstance(layer, MaxPoolingLayer):
@@ -465,7 +465,6 @@ class ConvolutionalLayer:
                     sum_gradient += np.multiply(current_input, neuron.delta)
                     #print(sum_gradient)
             print(self.weights[feature_map_index])
-
             # generating updated_weights and biases per kernel index
             updated_weight = self.weights[feature_map_index] - np.multiply(self.learning_rate, sum_gradient)
             print("Weights: \n", updated_weight)
@@ -479,7 +478,6 @@ class ConvolutionalLayer:
                     neuron.updated_weights.append(updated_weight)
                     neuron.updated_bias = updated_bias
         # return deltas for next layer in back prop
-        print(delta_sums_kernels)
         return delta_sums_kernels
 
 
@@ -543,7 +541,6 @@ class MaxPoolingLayer:
                     maxpool_mask[row_index][col_index] = deltas_weights[i][j][k]
             maxpool_masks.append(maxpool_mask)
             # two variables are returned, situational if maxpool is included network or not
-        print(maxpool_masks)
         return deltas_weights, maxpool_masks
 
 
@@ -573,9 +570,19 @@ class FlattenLayer:
         # np.array(input_vector).flatten()
         return flatten_layer
 
-    def backprop(self, deltas_weights):
-        print()
-        print(deltas_weights)
+    def backprop(self, deltas_weights, Maxpool):
+        if Maxpool == True:
+            b = []
+            c = []
+            for index, element in enumerate(deltas_weights):
+                if index % 2 == 0:
+                    b.append(element)
+                else:
+                    c.append(element)
+            deltas_weights = None
+            deltas_weights = b + c
+        elif Maxpool == False:
+            pass
         delta_sum = np.reshape(deltas_weights, (len(deltas_weights)//np.product(self.dimension_input),
                                                      self.dimension_input[0],
                                                      self.dimension_input[1]))
