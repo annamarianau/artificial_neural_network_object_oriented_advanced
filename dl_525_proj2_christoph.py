@@ -62,12 +62,12 @@ class Neuron:
         return self.activate(self.bias + np.dot(self.weights, input_vector))
 
     # Method to calculate the delta values for the neuron if in the output layer
-    def calculate_delta_output(self, actual_output_network, loss_function):
+    def calculate_delta_output(self, actual_output_network, loss_function, number_outputs):
         if loss_function == "mse":
             if self.activation_function == "logistic":
-                return mse_loss_prime(self.output, actual_output_network) * log_act_prime(self.output)
+                return mse_loss_prime(self.output, actual_output_network, number_outputs) * log_act_prime(self.output)
             elif self.activation_function == "linear":
-                return mse_loss_prime(self.output, actual_output_network) * lin_act_prime(self.output)
+                return mse_loss_prime(self.output, actual_output_network, number_outputs) * lin_act_prime(self.output)
         elif loss_function == "bincrossentropy":
             if self.activation_function == "logistic":
                 return bin_cross_entropy_loss_prime(self.output, actual_output_network) * log_act_prime(self.output)
@@ -148,7 +148,7 @@ class FullyConnectedLayer:
             # actual_output_network[neuron_index]: index of actual output at output neurons of network
             for neuron_index, neuron in enumerate(self.neurons):
                 neuron.delta = neuron.calculate_delta_output(actual_output_network=actual_output[neuron_index],
-                                                             loss_function=loss_function)
+                                                             loss_function=loss_function, number_outputs=1)
                 deltas_weights_output_layer.append((neuron.delta, neuron.weights))
                 # Computing the gradient / error weight for each weight based on the input to the neuron
                 for index_input, current_input in enumerate(input_layer):
@@ -670,8 +670,8 @@ def mse_loss(predicted_output, actual_output, number_outputs):
     return output_network
 
 
-def mse_loss_prime(predicted_output, actual_output):
-    return -(actual_output - predicted_output)
+def mse_loss_prime(predicted_output, actual_output, number_outputs):
+    return 2 * (actual_output - predicted_output) * (1/number_outputs) * -(1)
 
 
 def bin_cross_entropy_loss(predicted_output, actual_output, number_outputs):
